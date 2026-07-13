@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Golf Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --green:#2e7d32; --green-d:#1b5e20; --green-l:#4caf50;
+    --bg:#0f1512; --card:#1a221d; --card2:#212b24;
+    --line:#33413a; --text:#e8efe9; --muted:#9fb0a5; --accent:#7bd88f;
+    --fair:#3a5a40; --oob:#5a3a3a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  body{padding:0 0 90px;}
+  h1{font-size:18px;margin:0;letter-spacing:.5px;}
+  .topbar{position:static;background:linear-gradient(180deg,#12241a,#0f1512);
+    padding:12px 14px 10px;border-bottom:1px solid var(--line);}
+  .toprow{display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:640px;margin:0 auto;}
+  .date input{background:var(--card);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:6px 8px;font-size:13px;}
+  .courserow{display:flex;gap:8px;max-width:640px;margin:10px auto 0;}
+  .courserow select{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:8px 10px;font-size:13px;font-weight:600;-webkit-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%239fb0a5'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center;padding-right:26px;}
+  .courserow select.tee{flex:0 0 122px;}
+  .coursemeta{max-width:640px;margin:6px auto 0;font-size:11px;color:var(--muted);text-align:right;min-height:14px;}
+  .holes{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;margin:10px auto 0;max-width:640px;}
+  .hbtn{border:1px solid var(--line);background:var(--card);color:var(--muted);
+    border-radius:7px;font-size:12px;font-weight:600;padding:5px 0;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;position:relative;}
+  .hbtn.played{color:var(--text);border-color:var(--green);}
+  .hbtn.active{background:var(--green);color:#fff;border-color:var(--green-l);box-shadow:0 0 0 2px rgba(123,216,143,.3);}
+  .hbtn .sc{position:absolute;bottom:1px;right:3px;font-size:8px;font-weight:700;color:var(--accent);}
+  .hbtn .parpip{position:absolute;top:1px;left:3px;font-size:7px;font-weight:700;color:var(--muted);}
+  .wrap{padding:14px;max-width:640px;margin:0 auto;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px;}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);
+    margin:0 0 12px;font-weight:700;display:flex;justify-content:space-between;align-items:center;}
+  .card h2 .sub{text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent);font-size:12px;}
+  .kpi{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .kpi label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:5px;font-weight:600;min-width:0;}
+  .kpi input{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;
+    padding:12px;font-size:20px;font-weight:700;text-align:center;}
+  .kpi input.auto{border-color:var(--green-d);color:var(--accent);}
+  input:focus,textarea:focus{outline:none;border-color:var(--green-l);}
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+    padding:0 4px 8px;text-align:left;font-weight:700;}
+  td{padding:3px 3px;}
+  .num{width:26px;color:var(--muted);font-size:13px;text-align:center;font-weight:700;}
+  td input{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:10px 6px;font-size:15px;text-align:center;}
+  .carry{background:transparent !important;border-style:dashed !important;color:var(--accent) !important;
+    font-weight:700;}
+  #mapFrame{position:relative;width:100%;height:420px;border-radius:12px;overflow:hidden;
+    border:1px solid var(--line);background:var(--card2);}
+  #map{position:absolute;top:-25%;left:-25%;width:150%;height:150%;
+    transform-origin:50% 50%;transition:transform .35s ease;}
+  .hm-rot{transition:transform .35s ease;}   /* label counter-rotation */
+  .mepos{position:relative;width:40px;height:40px;}
+  .medot{position:absolute;left:50%;top:50%;width:16px;height:16px;background:#1e90ff;
+    border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5);}
+  .mecone{position:absolute;left:50%;bottom:50%;width:0;height:0;transform-origin:50% 100%;
+    border-left:11px solid transparent;border-right:11px solid transparent;
+    border-bottom:22px solid rgba(30,144,255,.45);transform:translateX(-50%);display:none;}
+  .navtabs{display:flex;gap:6px;max-width:640px;margin:10px auto 0;}
+  .navtab{flex:1;background:var(--card);border:1px solid var(--line);color:var(--muted);
+    border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;}
+  .navtab.active{background:var(--green);color:#fff;border-color:var(--green-l);}
+  .clubsuggest{margin-top:8px;padding:12px;background:linear-gradient(180deg,#1f2a22,#19211c);
+    border:1px solid var(--green-d);border-radius:10px;}
+  .cs-main{display:flex;align-items:baseline;gap:8px;}
+  .cs-club{font-size:24px;font-weight:800;color:#fff;}
+  .cs-tag{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:700;}
+  .cs-between{font-size:12px;color:var(--muted);margin-top:5px;}
+  .cs-between b{color:var(--text);}
+  .bagtable td{padding:6px 3px;}
+  .bagtable td input{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:11px 8px;font-size:15px;}
+  .bagtable td.club-cell{width:55%;}
+  .bagtable td.yd-cell{width:30%;}
+  .bagtable td.yd-cell input{text-align:center;}
+  .delbtn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
+    padding:8px 11px;font-size:16px;line-height:1;cursor:pointer;}
+  .bagadd{display:flex;gap:8px;margin-top:12px;align-items:stretch;}
+  .bagadd input{background:var(--card2);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:12px;font-size:15px;}
+  .bagadd #newClub{flex:1;min-width:0;}
+  .bagadd #newDist{flex:0 0 78px;text-align:center;}
+  .maprow{display:flex;gap:8px;margin-top:8px;align-items:center;}
+  .gpsbtn{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;
+    padding:9px;font-size:12px;font-weight:700;cursor:pointer;}
+  .gpsbtn.on{border-color:var(--green-l);color:var(--accent);}
+  .gpsstat{font-size:11px;color:var(--muted);flex:1;text-align:right;}
+  .distbar{display:flex;align-items:baseline;gap:8px;margin-top:8px;padding:10px 12px;
+    background:var(--card2);border:1px solid var(--line);border-radius:10px;}
+  .distbig{font-size:26px;font-weight:800;color:var(--accent);letter-spacing:.5px;}
+  .distlbl{font-size:11px;color:var(--muted);}
+  .visual{position:relative;width:100%;touch-action:manipulation;user-select:none;}
+  .fairway{aspect-ratio:3/4;background:linear-gradient(90deg,var(--oob) 0 12%,var(--fair) 12% 88%,var(--oob) 88% 100%);
+    border-radius:12px;overflow:hidden;border:1px solid var(--line);}
+  .fairway .cl{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed rgba(255,255,255,.25);}
+  .fairway .tee{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);width:60%;height:8px;
+    background:rgba(255,255,255,.15);border-radius:4px;}
+  .flabel{position:absolute;font-size:10px;color:rgba(255,255,255,.6);pointer-events:none;}
+  .green-vis{aspect-ratio:1/1;max-width:280px;margin:0 auto;border-radius:50%;
+    background:radial-gradient(circle at 50% 45%,#3f7a45,#2c5531);border:2px solid #4caf50;position:relative;}
+  .pin{position:absolute;left:50%;top:50%;width:10px;height:10px;background:#111;border-radius:50%;
+    transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(255,255,255,.25);}
+  .dot{position:absolute;width:16px;height:16px;background:#ffd84c;border:2px solid #111;border-radius:50%;
+    transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.5);}
+  .hint{font-size:11px;color:var(--muted);margin:8px 2px 0;}
+  .clearbtn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
+    padding:5px 10px;font-size:11px;margin-top:8px;cursor:pointer;}
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;}
+  .summary .box{background:var(--card2);border-radius:10px;padding:12px 6px;}
+  .summary .big{font-size:24px;font-weight:800;color:var(--accent);}
+  .summary .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;}
+  .bottombar{position:fixed;bottom:0;left:0;right:0;z-index:1000;background:linear-gradient(0deg,#0f1512,#0f1512cc);
+    border-top:1px solid var(--line);padding:12px 14px;display:flex;gap:10px;max-width:640px;margin:0 auto;}
+  .btn{flex:1;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;}
+  .btn.primary{background:var(--green);color:#fff;}
+  .btn.ghost{background:var(--card);color:var(--muted);border:1px solid var(--line);flex:0 0 auto;padding:14px 16px;}
+  .leaflet-container{background:#1a221d;}
+  .hm{width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:800;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6);}
+  .hm-tee{background:#e67e22;}
+  .hm-green{background:#2e7d32;font-size:12px;}
+  .gpsbtn.calibrating{border-color:#e67e22;color:#f0a860;background:#2a2018;}
+  datalist{color:#000;}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="toprow">
+    <h1>&#9971; Golf Tracker</h1>
+    <span class="date"><input type="date" id="roundDate"></span>
+  </div>
+  <div class="navtabs">
+    <button class="navtab active" data-view="play">Play</button>
+    <button class="navtab" data-view="bag">My Bag</button>
+  </div>
+  <div id="courseControls">
+    <div class="courserow">
+      <select id="courseSel"></select>
+      <select id="teeSel" class="tee"></select>
+    </div>
+    <div class="coursemeta" id="courseMeta"></div>
+    <div class="holes" id="holeGrid"></div>
+  </div>
+</div>
+
+<div class="wrap" id="playView">
+  <div class="card">
+    <h2>Hole <span id="curHole">1</span> &mdash; KPIs <span class="sub" id="holeInfo"></span></h2>
+    <div class="kpi">
+      <label>Par<input type="number" inputmode="numeric" id="kpi_par" placeholder="4"></label>
+      <label>Score<input type="number" inputmode="numeric" id="kpi_score" placeholder="&mdash;"></label>
+      <label>Hole Length (yds)<input type="number" inputmode="numeric" id="kpi_len" placeholder="400"></label>
+      <label>Putts<input type="number" inputmode="numeric" id="kpi_putts" placeholder="&mdash;"></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Course Map <span class="sub" id="mapCourseName"></span></h2>
+    <div id="mapFrame"><div id="map"></div></div>
+    <div class="distbar" id="distBar">
+      <span class="distbig" id="distYds">—</span>
+      <span class="distlbl" id="distLbl">tap the map to set a target</span>
+    </div>
+    <div class="clubsuggest" id="clubSuggest" style="display:none">
+      <div class="cs-main"><span class="cs-club" id="csClub">—</span><span class="cs-tag">suggested</span></div>
+      <div class="cs-between" id="csBetween"></div>
+    </div>
+    <div class="maprow">
+      <button class="gpsbtn" id="gpsBtn">Start GPS</button>
+      <button class="gpsbtn" id="clearTargetBtn">Clear target</button>
+      <span class="gpsstat" id="gpsStat">GPS off</span>
+    </div>
+    <div class="maprow">
+      <button class="gpsbtn" id="calibBtn">Calibrate hole</button>
+      <button class="gpsbtn" id="frameBtn">Re-frame hole</button>
+      <span class="gpsstat" id="calibStat"></span>
+    </div>
+    <p class="hint">Live satellite view. Tap <b>Start GPS</b> for a live blue dot at your position. Tap anywhere on the map to drop a target — distance and a club suggestion appear below. Add your clubs under <b>My Bag</b> to enable suggestions.</p>
+  </div>
+
+
+  <div class="card">
+    <h2>Shots &mdash; Carry auto-calculated</h2>
+    <table>
+      <thead><tr><th></th><th>Club</th><th>Dist to hole</th><th>Carry</th></tr></thead>
+      <tbody id="swingRows"></tbody>
+    </table>
+    <p class="hint">Enter your distance remaining to the hole for each shot. Each row's Carry = that row's distance minus the next row's distance (how far that shot traveled).</p>
+  </div>
+
+  <div class="card">
+    <h2>Tee / Fairway &mdash; tap to drop your shot</h2>
+    <div class="visual fairway" id="fairway">
+      <div class="cl" style="left:33%"></div>
+      <div class="cl" style="left:67%"></div>
+      <div class="tee"></div>
+      <span class="flabel" style="top:6px;left:6px">OB</span>
+      <span class="flabel" style="top:6px;right:6px">OB</span>
+      <span class="flabel" style="top:50%;left:50%;transform:translateX(-50%)">Fairway</span>
+    </div>
+    <button class="clearbtn" data-clear="fairway">Clear dot</button>
+  </div>
+
+  <div class="card">
+    <h2>Green &mdash; tap where your approach landed</h2>
+    <div class="visual green-vis" id="green">
+      <div class="pin"></div>
+    </div>
+    <button class="clearbtn" data-clear="green">Clear dot</button>
+  </div>
+
+  <div class="card">
+    <h2>Round Totals</h2>
+    <div class="summary">
+      <div class="box"><div class="big" id="t_score">0</div><div class="lbl">Score</div></div>
+      <div class="box"><div class="big" id="t_par">E</div><div class="lbl">vs Par</div></div>
+      <div class="box"><div class="big" id="t_putts">0</div><div class="lbl">Putts</div></div>
+    </div>
+    <p class="hint" id="t_holes">0 holes entered</p>
+  </div>
+</div>
+
+<div class="wrap" id="bagView" style="display:none">
+  <div class="card">
+    <h2>My Bag <span class="sub">total distance per club</span></h2>
+    <p class="hint" style="margin-top:0">Add each club and how far the ball actually travels (carry + roll). These stay saved across every round — resetting a round never clears them. On the map, dropping a target suggests the nearest club, and flags when you're between two.</p>
+    <table class="bagtable">
+      <thead><tr><th>Club</th><th>Yards</th><th></th></tr></thead>
+      <tbody id="bagRows"></tbody>
+    </table>
+    <div class="bagadd">
+      <input list="clubList" id="newClub" placeholder="Club (e.g. 7 Iron)">
+      <input type="number" inputmode="numeric" id="newDist" placeholder="Yds">
+      <button class="btn primary" id="addClubBtn" style="flex:0 0 auto;padding:12px 16px">Add</button>
+    </div>
+    <p class="hint" id="bagEmpty">No clubs yet — add your bag above.</p>
+  </div>
+</div>
+
+<div class="bottombar">
+  <button class="btn primary" id="exportBtn">Export to Excel</button>
+  <button class="btn ghost" id="resetBtn">Reset</button>
+</div>
+
+<datalist id="clubList">
+  <option>Driver</option><option>3 Wood</option><option>5 Wood</option><option>Hybrid</option>
+  <option>3 Iron</option><option>4 Iron</option><option>5 Iron</option><option>6 Iron</option>
+  <option>7 Iron</option><option>8 Iron</option><option>9 Iron</option>
+  <option>PW</option><option>GW</option><option>SW</option><option>LW</option><option>Putter</option>
+</datalist>
+
+<script>
+/* ============================================================
+   COURSE DATABASE
+   To add a course, copy the block format below. Per hole:
+   par, hcp (stroke index), and a yards object keyed by tee id.
+   tees[] lists tee id, label, color, and men's rating/slope.
+   center:[lat,lng] centers the GPS map on the course.
+   Verified data included: Raven Golf Club (Phoenix).
+   Others are stubbed with structure ready — fill `holes` to activate.
+   ============================================================ */
+const COURSES = {
+  raven: {
+    name:"Raven Golf Club (Phoenix)", center:[33.3808,-112.0058], exact:true,
+    tees:[
+      {id:"raven",label:"Raven",color:"#111",rating:73.2,slope:132,yards:7078},
+      {id:"silver",label:"Silver",color:"#c0c0c0",rating:70.8,slope:127,yards:6722},
+      {id:"white",label:"White",color:"#f5f5f5",rating:68.3,slope:121,yards:6264},
+      {id:"gold",label:"Gold",color:"#d4af37",rating:66,slope:114,yards:5759}
+    ],
+    holes:[
+      {par:4,hcp:11,y:{raven:436,silver:414,white:386,gold:355}},
+      {par:3,hcp:17,y:{raven:137,silver:130,white:121,gold:111}},
+      {par:4,hcp:1,y:{raven:477,silver:453,white:422,gold:388}},
+      {par:5,hcp:3,y:{raven:596,silver:565,white:526,gold:484}},
+      {par:4,hcp:15,y:{raven:324,silver:308,white:287,gold:264}},
+      {par:4,hcp:7,y:{raven:428,silver:406,white:379,gold:348}},
+      {par:3,hcp:13,y:{raven:221,silver:210,white:196,gold:180}},
+      {par:4,hcp:5,y:{raven:421,silver:400,white:373,gold:343}},
+      {par:5,hcp:9,y:{raven:526,silver:500,white:466,gold:428}},
+      {par:4,hcp:12,y:{raven:405,silver:385,white:358,gold:330}},
+      {par:3,hcp:16,y:{raven:195,silver:185,white:173,gold:159}},
+      {par:5,hcp:8,y:{raven:519,silver:493,white:459,gold:422}},
+      {par:4,hcp:10,y:{raven:386,silver:367,white:342,gold:314}},
+      {par:3,hcp:18,y:{raven:167,silver:159,white:148,gold:136}},
+      {par:4,hcp:14,y:{raven:366,silver:348,white:324,gold:298}},
+      {par:4,hcp:4,y:{raven:453,silver:430,white:401,gold:369}},
+      {par:5,hcp:2,y:{raven:593,silver:563,white:524,gold:482}},
+      {par:4,hcp:6,y:{raven:428,silver:406,white:379,gold:348}}
+    ]
+  },
+  stonecreek: {
+    name:"Stonecreek Golf Club (Phoenix)", center:[33.5958,-111.9848], exact:false,
+    tees:[
+      {id:"green",label:"Green",color:"#2e7d32",rating:72.7,slope:131,yards:6871},
+      {id:"gold",label:"Gold",color:"#d4af37",rating:69.9,slope:129,yards:6322},
+      {id:"black",label:"Black",color:"#111",rating:68.1,slope:125,yards:5937},
+      {id:"silver",label:"Silver",color:"#c0c0c0",rating:67.8,slope:116,yards:5018}
+    ],
+    holes:[
+      {par:4,hcp:13,y:{green:364,gold:335,black:315,silver:266}},
+      {par:4,hcp:3,y:{green:399,gold:367,black:345,silver:291}},
+      {par:3,hcp:17,y:{green:181,gold:167,black:156,silver:132}},
+      {par:4,hcp:5,y:{green:426,gold:392,black:368,silver:311}},
+      {par:3,hcp:15,y:{green:186,gold:171,black:161,silver:136}},
+      {par:4,hcp:1,y:{green:389,gold:358,black:336,silver:284}},
+      {par:5,hcp:9,y:{green:548,gold:504,black:474,silver:400}},
+      {par:4,hcp:7,y:{green:370,gold:340,black:320,silver:270}},
+      {par:4,hcp:11,y:{green:410,gold:377,black:354,silver:299}},
+      {par:4,hcp:8,y:{green:382,gold:351,black:330,silver:279}},
+      {par:4,hcp:10,y:{green:402,gold:370,black:347,silver:294}},
+      {par:3,hcp:16,y:{green:197,gold:181,black:170,silver:144}},
+      {par:5,hcp:14,y:{green:548,gold:504,black:474,silver:400}},
+      {par:4,hcp:4,y:{green:378,gold:348,black:327,silver:276}},
+      {par:3,hcp:18,y:{green:227,gold:209,black:196,silver:166}},
+      {par:5,hcp:2,y:{green:609,gold:561,black:525,silver:446}},
+      {par:4,hcp:6,y:{green:419,gold:386,black:362,silver:306}},
+      {par:4,hcp:12,y:{green:436,gold:401,black:377,silver:318}}
+    ]
+  },
+  mcdowell: {
+    name:"McDowell Mountain GC (Scottsdale)", center:[33.6166,-111.8524], exact:false,
+    tees:[
+      {id:"black",label:"Black",color:"#111",rating:73.1,slope:133,yards:7118},
+      {id:"gold",label:"Gold",color:"#d4af37",rating:70.3,slope:128,yards:6489},
+      {id:"white",label:"White",color:"#f5f5f5",rating:66.7,slope:115,yards:5879},
+      {id:"red",label:"Red",color:"#c0392b",rating:62.7,slope:107,yards:5085}
+    ],
+    holes:[
+      {par:4,hcp:3,y:{black:429,gold:391,white:354,red:306}},
+      {par:4,hcp:17,y:{black:366,gold:334,white:302,red:261}},
+      {par:3,hcp:15,y:{black:225,gold:205,white:186,red:161}},
+      {par:5,hcp:5,y:{black:575,gold:525,white:476,red:412}},
+      {par:4,hcp:11,y:{black:402,gold:366,white:332,red:287}},
+      {par:4,hcp:13,y:{black:394,gold:359,white:325,red:281}},
+      {par:4,hcp:1,y:{black:432,gold:394,white:357,red:309}},
+      {par:3,hcp:7,y:{black:191,gold:174,white:158,red:136}},
+      {par:5,hcp:9,y:{black:542,gold:495,white:448,red:388}},
+      {par:4,hcp:8,y:{black:440,gold:401,white:363,red:314}},
+      {par:4,hcp:4,y:{black:448,gold:408,white:370,red:320}},
+      {par:4,hcp:10,y:{black:380,gold:346,white:314,red:271}},
+      {par:5,hcp:14,y:{black:532,gold:485,white:439,red:381}},
+      {par:3,hcp:18,y:{black:161,gold:147,white:133,red:115}},
+      {par:5,hcp:12,y:{black:520,gold:474,white:429,red:371}},
+      {par:4,hcp:16,y:{black:339,gold:309,white:280,red:242}},
+      {par:3,hcp:6,y:{black:234,gold:213,white:193,red:167}},
+      {par:4,hcp:2,y:{black:508,gold:463,white:420,red:363}}
+    ]
+  },
+  orangetree: {
+    name:"Orange Tree Golf Resort (Scottsdale)", center:[33.5875,-111.96], exact:false,
+    tees:[
+      {id:"blue",label:"Blue",color:"#2c5aa0",rating:74.1,slope:124,yards:6740},
+      {id:"white",label:"White",color:"#f5f5f5",rating:69.3,slope:119,yards:6344},
+      {id:"gold",label:"Gold",color:"#d4af37",rating:66.2,slope:111,yards:5666},
+      {id:"orange",label:"Orange",color:"#e67e22",rating:66.5,slope:113,yards:4777}
+    ],
+    holes:[
+      {par:4,hcp:13,y:{blue:362,white:341,gold:304,orange:257}},
+      {par:5,hcp:1,y:{blue:500,white:471,gold:420,orange:354}},
+      {par:4,hcp:11,y:{blue:380,white:358,gold:319,orange:269}},
+      {par:3,hcp:15,y:{blue:168,white:158,gold:141,orange:119}},
+      {par:4,hcp:9,y:{blue:394,white:371,gold:331,orange:279}},
+      {par:5,hcp:5,y:{blue:489,white:460,gold:411,orange:347}},
+      {par:3,hcp:17,y:{blue:216,white:203,gold:182,orange:153}},
+      {par:4,hcp:3,y:{blue:414,white:390,gold:348,orange:293}},
+      {par:4,hcp:7,y:{blue:376,white:354,gold:316,orange:266}},
+      {par:4,hcp:12,y:{blue:367,white:345,gold:309,orange:260}},
+      {par:4,hcp:10,y:{blue:408,white:384,gold:343,orange:289}},
+      {par:3,hcp:16,y:{blue:188,white:177,gold:158,orange:133}},
+      {par:5,hcp:2,y:{blue:578,white:543,gold:487,orange:411}},
+      {par:4,hcp:14,y:{blue:409,white:385,gold:344,orange:290}},
+      {par:3,hcp:18,y:{blue:188,white:177,gold:158,orange:133}},
+      {par:4,hcp:4,y:{blue:399,white:376,gold:335,orange:283}},
+      {par:5,hcp:8,y:{blue:501,white:472,gold:421,orange:355}},
+      {par:4,hcp:6,y:{blue:403,white:379,gold:339,orange:286}}
+    ]
+  },
+  mccormick_palm: {
+    name:"McCormick Ranch — Palm (Scottsdale)", center:[33.5665,-111.888], exact:true,
+    tees:[
+      {id:"blue",label:"Blue",color:"#2c5aa0",rating:74.3,slope:130,yards:7044},
+      {id:"white",label:"White",color:"#f5f5f5",rating:71.5,slope:129,yards:6279},
+      {id:"brown",label:"Brown",color:"#8b5a2b",rating:70.1,slope:127,yards:5820},
+      {id:"red",label:"Red",color:"#c0392b",rating:68.7,slope:117,yards:5057}
+    ],
+    holes:[
+      {par:4,hcp:13,y:{blue:375,white:337,brown:304,red:284}},
+      {par:4,hcp:9,y:{blue:384,white:351,brown:333,red:301}},
+      {par:5,hcp:5,y:{blue:531,white:497,brown:464,red:418}},
+      {par:4,hcp:7,y:{blue:446,white:373,brown:350,red:277}},
+      {par:3,hcp:15,y:{blue:214,white:179,brown:151,red:122}},
+      {par:4,hcp:11,y:{blue:389,white:361,brown:333,red:243}},
+      {par:5,hcp:1,y:{blue:535,white:477,brown:455,red:392}},
+      {par:3,hcp:17,y:{blue:195,white:157,brown:116,red:82}},
+      {par:4,hcp:3,y:{blue:408,white:370,brown:352,red:251}},
+      {par:4,hcp:14,y:{blue:394,white:351,brown:328,red:295}},
+      {par:4,hcp:10,y:{blue:420,white:376,brown:359,red:332}},
+      {par:5,hcp:6,y:{blue:510,white:489,brown:474,red:427}},
+      {par:3,hcp:16,y:{blue:203,white:169,brown:146,red:136}},
+      {par:4,hcp:12,y:{blue:413,white:325,brown:307,red:276}},
+      {par:4,hcp:4,y:{blue:448,white:418,brown:382,red:349}},
+      {par:5,hcp:2,y:{blue:564,white:511,brown:479,red:461}},
+      {par:3,hcp:18,y:{blue:187,white:148,brown:114,red:76}},
+      {par:4,hcp:8,y:{blue:428,white:390,brown:373,red:335}}
+    ]
+  },
+  mccormick_pine: {
+    name:"McCormick Ranch — Pine (Scottsdale)", center:[33.5665,-111.888], exact:true,
+    tees:[
+      {id:"blue",label:"Blue",color:"#2c5aa0",rating:74.4,slope:135,yards:7187},
+      {id:"white",label:"White",color:"#f5f5f5",rating:70.5,slope:127,yards:6371},
+      {id:"brown",label:"Brown",color:"#8b5a2b",rating:68.7,slope:119,yards:5993},
+      {id:"red",label:"Red",color:"#c0392b",rating:70.2,slope:115,yards:5333}
+    ],
+    holes:[
+      {par:4,hcp:14,y:{blue:398,white:341,brown:322,red:289}},
+      {par:4,hcp:12,y:{blue:387,white:354,brown:343,red:308}},
+      {par:4,hcp:8,y:{blue:390,white:355,brown:333,red:310}},
+      {par:5,hcp:6,y:{blue:537,white:511,brown:487,red:469}},
+      {par:3,hcp:18,y:{blue:185,white:141,brown:109,red:96}},
+      {par:4,hcp:4,y:{blue:419,white:383,brown:368,red:336}},
+      {par:5,hcp:2,y:{blue:599,white:556,brown:533,red:468}},
+      {par:3,hcp:16,y:{blue:211,white:175,brown:141,red:125}},
+      {par:4,hcp:10,y:{blue:434,white:365,brown:357,red:326}},
+      {par:4,hcp:13,y:{blue:410,white:363,brown:335,red:276}},
+      {par:4,hcp:7,y:{blue:443,white:370,brown:350,red:320}},
+      {par:5,hcp:3,y:{blue:579,white:519,brown:497,red:476}},
+      {par:3,hcp:15,y:{blue:218,white:178,brown:158,red:115}},
+      {par:4,hcp:11,y:{blue:404,white:342,brown:318,red:271}},
+      {par:4,hcp:1,y:{blue:470,white:401,brown:375,red:277}},
+      {par:4,hcp:9,y:{blue:401,white:372,brown:357,red:328}},
+      {par:3,hcp:17,y:{blue:185,white:166,brown:144,red:100}},
+      {par:5,hcp:5,y:{blue:517,white:479,brown:466,red:443}}
+    ]
+  },
+  starfire: {
+    name:"Starfire GC — King+Hawk (Scottsdale)", center:[33.59,-111.9093], exact:false,
+    tees:[
+      {id:"palmer",label:"Palmer",color:"#2e7d32",rating:72,slope:133,yards:6106},
+      {id:"regular",label:"Regular",color:"#2c5aa0",rating:69.5,slope:126,yards:5630},
+      {id:"middle",label:"Middle",color:"#f5f5f5",rating:67,slope:120,yards:5084},
+      {id:"forward",label:"Forward",color:"#c0392b",rating:62.5,slope:108,yards:4467}
+    ],
+    holes:[
+      {par:5,hcp:9,y:{palmer:559,regular:515,middle:464,forward:408}},
+      {par:3,hcp:15,y:{palmer:188,regular:173,middle:157,forward:138}},
+      {par:4,hcp:1,y:{palmer:421,regular:388,middle:351,forward:308}},
+      {par:3,hcp:17,y:{palmer:144,regular:133,middle:120,forward:105}},
+      {par:4,hcp:13,y:{palmer:349,regular:322,middle:291,forward:255}},
+      {par:5,hcp:11,y:{palmer:498,regular:459,middle:415,forward:364}},
+      {par:4,hcp:7,y:{palmer:400,regular:369,middle:333,forward:293}},
+      {par:3,hcp:5,y:{palmer:203,regular:187,middle:169,forward:149}},
+      {par:5,hcp:3,y:{palmer:504,regular:465,middle:419,forward:369}},
+      {par:3,hcp:10,y:{palmer:197,regular:182,middle:164,forward:144}},
+      {par:4,hcp:4,y:{palmer:396,regular:365,middle:330,forward:290}},
+      {par:4,hcp:8,y:{palmer:339,regular:313,middle:282,forward:248}},
+      {par:5,hcp:12,y:{palmer:479,regular:442,middle:399,forward:350}},
+      {par:3,hcp:18,y:{palmer:169,regular:156,middle:141,forward:124}},
+      {par:4,hcp:6,y:{palmer:385,regular:355,middle:321,forward:282}},
+      {par:4,hcp:2,y:{palmer:369,regular:340,middle:307,forward:270}},
+      {par:3,hcp:16,y:{palmer:153,regular:141,middle:127,forward:112}},
+      {par:4,hcp:14,y:{palmer:353,regular:325,middle:294,forward:258}}
+    ]
+  }
+};
+
+
+/* ============================================================
+   HOLE GEOMETRY (tee + green coords per hole, per course)
+   SEED values are approximate — positioned around the course
+   footprint so auto-frame works out of the box. Use in-app
+   Calibrate mode to tap-set exact tee/green; overrides save to
+   localStorage under HOLEGEO_KEY and persist across resets.
+   ============================================================ */
+const HOLEGEO_SEED = {
+  stonecreek:{
+    1:{tee:[33.598115,-111.983789],green:[33.600923,-111.982562]},
+    2:{tee:[33.596642,-111.982021],green:[33.597763,-111.978326]},
+    3:{tee:[33.594958,-111.982021],green:[33.594449,-111.980345]},
+    4:{tee:[33.593667,-111.983322],green:[33.590638,-111.981222]},
+    5:{tee:[33.593485,-111.985811],green:[33.59205,-111.986438]},
+    6:{tee:[33.594568,-111.987361],green:[33.592972,-111.990681]},
+    7:{tee:[33.596228,-111.987712],green:[33.597009,-111.993031]},
+    8:{tee:[33.597687,-111.986701],green:[33.600014,-111.989045]},
+    9:{tee:[33.598226,-111.985313],green:[33.601541,-111.986015]},
+    10:{tee:[33.599297,-111.98186],green:[33.601866,-111.979701]},
+    11:{tee:[33.596541,-111.979752],green:[33.597114,-111.97585]},
+    12:{tee:[33.593351,-111.980601],green:[33.592424,-111.979011]},
+    13:{tee:[33.591676,-111.983473],green:[33.58733,-111.982075]},
+    14:{tee:[33.592103,-111.987363],green:[33.589415,-111.989226]},
+    15:{tee:[33.59434,-111.989616],green:[33.593702,-111.991719]},
+    16:{tee:[33.59726,-111.989616],green:[33.59897,-111.995257]},
+    17:{tee:[33.599497,-111.987363],green:[33.602477,-111.989428]},
+    18:{tee:[33.600053,-111.984353],green:[33.603619,-111.983979]}
+  }
+};
+
+const STORE_KEY = 'golfTrackerData_v2';
+const BAG_KEY = 'golfTrackerBag_v1';
+const HOLEGEO_KEY = 'golfTrackerHoleGeo_v1';
+const ROWS = 7;
+let state = load();
+let bag = loadBag();   // [{club, dist}] persisted separately from rounds
+let cur = 1;
+let map, tileLayer, meMarker, meAccuracy, watchId=null;
+let targetMarker=null, targetLL=null, distLine=null, meLL=null;
+
+function blankHole(){ return {par:'',score:'',len:'',putts:'',swings:Array.from({length:ROWS},()=>({club:'',dist:''})),fairway:null,green:null}; }
+function freshRound(){
+  const holes={}; for(let i=1;i<=18;i++) holes[i]=blankHole();
+  return { date:new Date().toISOString().slice(0,10), course:'', tee:'', holes };
+}
+function load(){
+  try{ const d = JSON.parse(localStorage.getItem(STORE_KEY)); if(d&&d.holes) return d; }catch(e){}
+  return freshRound();
+}
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+
+/* ---- My Bag: persisted separately so a round Reset never clears clubs ---- */
+function loadBag(){
+  try{ const d=JSON.parse(localStorage.getItem(BAG_KEY)); if(Array.isArray(d)) return d; }catch(e){}
+  return [];
+}
+function saveBag(){ try{ localStorage.setItem(BAG_KEY, JSON.stringify(bag)); }catch(e){} }
+
+/* ---- Hole geometry: seed + user calibrations (persist across resets) ---- */
+let holeGeoUser = loadHoleGeo();  // {courseId:{holeNum:{tee:[..],green:[..]}}}
+function loadHoleGeo(){
+  try{ const d=JSON.parse(localStorage.getItem(HOLEGEO_KEY)); if(d&&typeof d==='object') return d; }catch(e){}
+  return {};
+}
+function saveHoleGeo(){ try{ localStorage.setItem(HOLEGEO_KEY, JSON.stringify(holeGeoUser)); }catch(e){} }
+/* Return {tee,green} for current course+hole: user calibration wins over seed. */
+function geoFor(courseId, holeNum){
+  const u = holeGeoUser[courseId] && holeGeoUser[courseId][holeNum];
+  if(u && u.tee && u.green) return {tee:u.tee, green:u.green, calibrated:true};
+  const s = HOLEGEO_SEED[courseId] && HOLEGEO_SEED[courseId][holeNum];
+  if(s) return {tee:s.tee, green:s.green, calibrated:false};
+  return null;
+}
+function setGeo(courseId, holeNum, which, latlng){
+  if(!holeGeoUser[courseId]) holeGeoUser[courseId]={};
+  if(!holeGeoUser[courseId][holeNum]){
+    // seed with existing so the other point isn't lost
+    const cur=geoFor(courseId,holeNum);
+    holeGeoUser[courseId][holeNum]= cur ? {tee:cur.tee.slice(), green:cur.green.slice()} : {tee:null,green:null};
+  }
+  holeGeoUser[courseId][holeNum][which]=[+latlng.lat.toFixed(6),+latlng.lng.toFixed(6)];
+  saveHoleGeo();
+}
+function bagSorted(){
+  // longest to shortest, ignoring blanks
+  return bag.filter(c=>c.club&&c.dist!==''&&!isNaN(+c.dist))
+            .map(c=>({club:c.club, dist:+c.dist}))
+            .sort((a,b)=>b.dist-a.dist);
+}
+/* Given a yardage, return {nearest, shorter, longer} clubs from the bag. */
+function clubsFor(yds){
+  const cs=bagSorted(); if(!cs.length) return null;
+  let nearest=cs[0], best=Infinity, longer=null, shorter=null;
+  for(const c of cs){
+    const d=Math.abs(c.dist-yds);
+    if(d<best){ best=d; nearest=c; }
+    if(c.dist>=yds && (!longer || c.dist<longer.dist)) longer=c;   // shortest club that still reaches
+    if(c.dist<=yds && (!shorter || c.dist>shorter.dist)) shorter=c; // longest club that stays short
+  }
+  return {nearest, longer, shorter};
+}
+
+function carryFor(swings, r){
+  const cur_d = parseFloat(swings[r].dist);
+  const next = (r+1<ROWS) ? parseFloat(swings[r+1].dist) : NaN;
+  return (!isNaN(cur_d)&&!isNaN(next)) ? Math.round(cur_d-next) : '';
+}
+
+function activeCourse(){ return state.course && COURSES[state.course] ? COURSES[state.course] : null; }
+function courseLoaded(){ const c=activeCourse(); return c && c.holes && c.holes.length===18; }
+
+/* ---- Course + tee selectors ---- */
+const courseSel = document.getElementById('courseSel');
+const teeSel = document.getElementById('teeSel');
+(function buildCourseSel(){
+  const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='Select course…'; courseSel.appendChild(opt0);
+  Object.keys(COURSES).forEach(id=>{
+    const o=document.createElement('option'); o.value=id;
+    o.textContent = COURSES[id].name;
+    courseSel.appendChild(o);
+  });
+})();
+function buildTeeSel(){
+  teeSel.innerHTML='';
+  const c=activeCourse();
+  if(!c||!c.tees.length){ const o=document.createElement('option'); o.value=''; o.textContent='Tee'; teeSel.appendChild(o); teeSel.disabled=true; return; }
+  teeSel.disabled=false;
+  c.tees.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.label+' '+t.yards; teeSel.appendChild(o); });
+  if(!state.tee || !c.tees.some(t=>t.id===state.tee)) state.tee=c.tees[0].id;
+  teeSel.value=state.tee;
+}
+courseSel.addEventListener('change', e=>{
+  state.course=e.target.value; state.tee='';
+  buildTeeSel();
+  if(courseLoaded()) applyCourseToHoles();
+  updateCourseMeta(); render(); recenterMap(); save();
+});
+teeSel.addEventListener('change', e=>{
+  state.tee=e.target.value;
+  if(courseLoaded()) applyCourseToHoles();
+  updateCourseMeta(); render(); save();
+});
+
+function updateCourseMeta(){
+  const c=activeCourse();
+  const meta=document.getElementById('courseMeta');
+  document.getElementById('mapCourseName').textContent = c?c.name:'';
+  if(!c){ meta.textContent=''; return; }
+  const t=c.tees.find(x=>x.id===state.tee);
+  const note = t ? (c.exact ? '' : (t.id===c.tees[0].id ? ' • exact' : ' • yds est.')) : '';
+  meta.textContent = t ? (t.label+' • '+t.yards+' yds • '+t.rating+'/'+t.slope+note) : '';
+}
+
+/* Fill par + hole length from the course scorecard for the selected tee.
+   Only fills blanks-or-course values; never overwrites a manual score/putt. */
+function applyCourseToHoles(){
+  const c=activeCourse(); if(!c||c.holes.length!==18) return;
+  for(let i=1;i<=18;i++){
+    const h=state.holes[i], hd=c.holes[i-1];
+    h.par = String(hd.par);
+    h.len = state.tee && hd.y[state.tee]!=null ? String(hd.y[state.tee]) : h.len;
+  }
+}
+
+/* ---- Hole selector grid ---- */
+const grid = document.getElementById('holeGrid');
+for(let i=1;i<=18;i++){
+  const b=document.createElement('div'); b.className='hbtn'; b.dataset.h=i;
+  b.innerHTML = '<span class="parpip"></span>'+i+'<span class="sc"></span>';
+  b.onclick = ()=>{ cur=i; render(); };
+  grid.appendChild(b);
+}
+function holePlayed(h){ return h.score||h.putts||h.swings.some(s=>s.club||s.dist)||h.fairway||h.green; }
+function renderGrid(){
+  const c=activeCourse();
+  document.querySelectorAll('.hbtn').forEach(b=>{
+    const i=+b.dataset.h, h=state.holes[i];
+    b.classList.toggle('active', i===cur);
+    b.classList.toggle('played', !!holePlayed(h) && i!==cur);
+    b.querySelector('.sc').textContent = h.score||'';
+    b.querySelector('.parpip').textContent = (c&&c.holes.length===18)?('P'+c.holes[i-1].par):'';
+  });
+}
+
+/* ---- Swing rows ---- */
+const swingRows = document.getElementById('swingRows');
+for(let r=0;r<ROWS;r++){
+  const tr=document.createElement('tr');
+  tr.innerHTML = '<td class="num">'+(r+1)+'</td>'+
+    '<td><input list="clubList" data-r="'+r+'" data-f="club" placeholder="&mdash;"></td>'+
+    '<td><input type="number" inputmode="numeric" data-r="'+r+'" data-f="dist" placeholder="&mdash;"></td>'+
+    '<td><input class="carry" data-r="'+r+'" data-f="carry" readonly tabindex="-1"></td>';
+  swingRows.appendChild(tr);
+}
+function renderSwings(){
+  const h=state.holes[cur];
+  for(let r=0;r<ROWS;r++){
+    const s=h.swings[r];
+    swingRows.querySelector('[data-r="'+r+'"][data-f="club"]').value=s.club;
+    swingRows.querySelector('[data-r="'+r+'"][data-f="dist"]').value=s.dist;
+    swingRows.querySelector('[data-r="'+r+'"][data-f="carry"]').value=carryFor(h.swings,r);
+  }
+}
+swingRows.addEventListener('input', e=>{
+  const r=+e.target.dataset.r, f=e.target.dataset.f;
+  if(f==='carry') return;
+  state.holes[cur].swings[r][f]=e.target.value;
+  renderSwings(); save();
+});
+
+/* ---- KPIs ---- */
+['par','score','len','putts'].forEach(k=>{
+  document.getElementById('kpi_'+k).addEventListener('input', e=>{
+    state.holes[cur][k]=e.target.value;
+    renderGrid(); renderTotals(); save();
+  });
+});
+
+/* ---- Visual dot placement ---- */
+function setupVisual(id, key){
+  const el=document.getElementById(id);
+  function place(clientX, clientY){
+    const rect=el.getBoundingClientRect();
+    const x=Math.min(1,Math.max(0,(clientX-rect.left)/rect.width));
+    const y=Math.min(1,Math.max(0,(clientY-rect.top)/rect.height));
+    state.holes[cur][key]={x,y}; renderDot(id,key); save();
+  }
+  el.addEventListener('click', ev=>place(ev.clientX, ev.clientY));
+}
+function renderDot(id,key){
+  const el=document.getElementById(id);
+  let dot=el.querySelector('.dot'); const pos=state.holes[cur][key];
+  if(!pos){ if(dot) dot.remove(); return; }
+  if(!dot){ dot=document.createElement('div'); dot.className='dot'; el.appendChild(dot); }
+  dot.style.left=(pos.x*100)+'%'; dot.style.top=(pos.y*100)+'%';
+}
+setupVisual('fairway','fairway'); setupVisual('green','green');
+document.querySelectorAll('[data-clear]').forEach(btn=>{
+  btn.onclick=()=>{ const k=btn.dataset.clear; state.holes[cur][k]=null; renderDot(k,k); save(); };
+});
+
+/* ---- Map (Leaflet + Esri satellite, no API key) ---- */
+let teeMarker=null, greenMarker=null, holeLine=null, arcLayers=[], calibMode=null;
+let currentBearing=0, deviceHeading=null;   // bearing tee->green (deg); phone compass heading
+
+/* compass bearing from point a to point b, degrees clockwise from north */
+function bearingBetween(a, b){
+  const toR=Math.PI/180, toD=180/Math.PI;
+  const dLng=(b[1]-a[1])*toR;
+  const y=Math.sin(dLng)*Math.cos(b[0]*toR);
+  const x=Math.cos(a[0]*toR)*Math.sin(b[0]*toR)-Math.sin(a[0]*toR)*Math.cos(b[0]*toR)*Math.cos(dLng);
+  return (Math.atan2(y,x)*toD+360)%360;
+}
+/* rotate the map so tee->green points up; counter-rotate labels to stay upright */
+function applyRotation(){
+  const mapEl=document.getElementById('map');
+  if(mapEl) mapEl.style.transform='rotate('+(-currentBearing)+'deg)';
+  document.querySelectorAll('.hm-rot').forEach(el=>{ el.style.transform='rotate('+currentBearing+'deg)'; });
+  updateHeadingCone();
+}
+
+function initMap(){
+  if(typeof L==='undefined'){          // Leaflet failed to load — degrade gracefully
+    const el=document.getElementById('map');
+    if(el) el.innerHTML='<div style="padding:20px;color:#9fb0a5;font-size:13px;line-height:1.5;text-align:center">'+
+      'Map couldn\u2019t load (no connection to the map library).<br>Everything else works — scorecard, shots, and club suggestions.<br>'+
+      'Reconnect to the internet and reload to get the map back.</div>';
+    document.getElementById('gpsBtn').disabled=true;
+    document.getElementById('calibBtn').disabled=true;
+    return;
+  }
+  const c=activeCourse();
+  const center = c ? c.center : [33.4484,-112.0740]; // Phoenix fallback
+  map = L.map('map',{zoomControl:true,attributionControl:false}).setView(center, c?15:11);
+  tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:19}).addTo(map);
+  map.on('click', onMapClick);
+  setTimeout(()=>{ map.invalidateSize(); drawHole(); },200);
+}
+
+function onMapClick(ev){
+  // When the map is CSS-rotated, Leaflet's latlng from the raw event is off.
+  // Recompute from the container point, un-rotating around the map center.
+  let latlng=ev.latlng;
+  if(currentBearing){
+    const size=map.getSize();
+    const cx=size.x/2, cy=size.y/2;
+    const p=map.mouseEventToContainerPoint(ev.originalEvent);
+    const th=currentBearing*Math.PI/180;               // reverse the -bearing visual rotation
+    const dx=p.x-cx, dy=p.y-cy;
+    const rx=dx*Math.cos(th)-dy*Math.sin(th)+cx;
+    const ry=dx*Math.sin(th)+dy*Math.cos(th)+cy;
+    latlng=map.containerPointToLatLng(L.point(rx,ry));
+  }
+  if(calibMode){                       // calibrate: tap sets tee, then green
+    setGeo(state.course, cur, calibMode, latlng);
+    if(calibMode==='tee'){ calibMode='green'; updateCalibUI('Now tap the GREEN center'); drawHole(); }
+    else{ calibMode=null; updateCalibUI(''); drawHole(true); }
+    return;
+  }
+  setTarget(latlng.lat, latlng.lng);
+}
+
+/* draw tee/green markers + hole line for the current hole, and optionally frame it */
+function drawHole(frame){
+  if(!map) return;
+  [teeMarker,greenMarker,holeLine].forEach(l=>{ if(l) map.removeLayer(l); });
+  teeMarker=greenMarker=holeLine=null;
+  if(!state.course) return;
+  const g=geoFor(state.course, cur);
+  if(!g) return;
+  currentBearing=bearingBetween(g.tee, g.green);   // tee -> green heading
+  const teeIcon=L.divIcon({className:'',html:'<div class="hm hm-tee hm-rot">T</div>',iconSize:[22,22],iconAnchor:[11,11]});
+  const grnIcon=L.divIcon({className:'',html:'<div class="hm hm-green hm-rot">'+cur+'</div>',iconSize:[24,24],iconAnchor:[12,12]});
+  teeMarker=L.marker(g.tee,{icon:teeIcon,interactive:false}).addTo(map);
+  greenMarker=L.marker(g.green,{icon:grnIcon,interactive:false}).addTo(map);
+  holeLine=L.polyline([g.tee,g.green],{color:'#ffffff',weight:2,opacity:.5,dashArray:'4 6'}).addTo(map);
+  if(frame!==false) frameHole(g);
+  updateCalibBadge(g.calibrated);
+}
+function frameHole(g){
+  const b=L.latLngBounds([g.tee,g.green]).pad(0.55);   // extra pad so rotation keeps hole in view
+  map.fitBounds(b,{maxZoom:18});
+  setTimeout(applyRotation,60);   // rotate after fit settles
+}
+function recenterMap(){
+  const c=activeCourse(); if(!map||!c) return;
+  drawHole(true);
+  setTimeout(()=>map.invalidateSize(),100);
+}
+
+/* faint distance arcs (rings) centered on live position */
+function drawArcs(){
+  if(!map) return;
+  arcLayers.forEach(a=>map.removeLayer(a)); arcLayers=[];
+  if(!meLL) return;
+  const ydsToM=0.9144;
+  [50,100,150,200].forEach(yd=>{
+    const ring=L.circle(meLL,{radius:yd*ydsToM,color:'#7bd88f',weight:1,opacity:.5,fill:false,dashArray:'2 6'}).addTo(map);
+    arcLayers.push(ring);
+  });
+}
+
+/* distance between two [lat,lng] points in yards (haversine) */
+function yardsBetween(a, b){
+  const R=6371000, toR=Math.PI/180;
+  const dLat=(b[0]-a[0])*toR, dLng=(b[1]-a[1])*toR;
+  const s=Math.sin(dLat/2)**2 + Math.cos(a[0]*toR)*Math.cos(b[0]*toR)*Math.sin(dLng/2)**2;
+  const m=R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
+  return m*1.09361;
+}
+
+function setTarget(lat, lng){
+  targetLL=[lat,lng];
+  if(!targetMarker){
+    targetMarker=L.marker(targetLL,{draggable:true}).addTo(map);
+    targetMarker.on('drag', e=>{ const p=e.target.getLatLng(); targetLL=[p.lat,p.lng]; updateDistance(); });
+  }else{
+    targetMarker.setLatLng(targetLL);
+  }
+  updateDistance();
+}
+function updateDistance(){
+  const distYds=document.getElementById('distYds');
+  const distLbl=document.getElementById('distLbl');
+  const sug=document.getElementById('clubSuggest');
+  // draw / update the line if we have both ends
+  if(meLL && targetLL){
+    if(!distLine){ distLine=L.polyline([meLL,targetLL],{color:'#ffd84c',weight:2,dashArray:'6 5'}).addTo(map); }
+    else{ distLine.setLatLngs([meLL,targetLL]); }
+  }else if(distLine){ distLine.remove(); distLine=null; }
+
+  if(!targetLL){ distYds.textContent='—'; distLbl.textContent='tap the map to set a target'; sug.style.display='none'; return; }
+  if(!meLL){ distYds.textContent='—'; distLbl.textContent='start GPS to measure from your position'; sug.style.display='none'; return; }
+  const y=Math.round(yardsBetween(meLL,targetLL));
+  distYds.textContent=y;
+  distLbl.textContent='yards to target';
+  renderSuggestion(y);
+}
+function renderSuggestion(y){
+  const sug=document.getElementById('clubSuggest');
+  const info=clubsFor(y);
+  if(!info){ sug.style.display='none'; return; }
+  sug.style.display='block';
+  document.getElementById('csClub').textContent=info.nearest.club+' ('+info.nearest.dist+')';
+  const bt=document.getElementById('csBetween');
+  const {shorter, longer}=info;
+  if(shorter && longer && shorter.club!==longer.club){
+    const over=y-shorter.dist, under=longer.dist-y;
+    bt.innerHTML='Between <b>'+shorter.club+'</b> '+shorter.dist+' (+'+over+' to reach) and <b>'
+      +longer.club+'</b> '+longer.dist+' (\u2212'+under+' if you flush it)';
+  }else if(longer && !shorter){
+    bt.innerHTML='Shortest club that reaches: <b>'+longer.club+'</b> '+longer.dist;
+  }else if(shorter && !longer){
+    bt.innerHTML='Longest club in the bag: <b>'+shorter.club+'</b> '+shorter.dist+' ('+(y-shorter.dist)+' short)';
+  }else{
+    bt.textContent='';
+  }
+}
+
+const gpsBtn=document.getElementById('gpsBtn');
+const gpsStat=document.getElementById('gpsStat');
+gpsBtn.onclick=()=>{ watchId===null ? startGPS() : stopGPS(); };
+document.getElementById('clearTargetBtn').onclick=()=>{
+  if(targetMarker){ targetMarker.remove(); targetMarker=null; }
+  targetLL=null; updateDistance();
+};
+
+/* ---- Calibrate mode ---- */
+const calibBtn=document.getElementById('calibBtn');
+const calibStat=document.getElementById('calibStat');
+calibBtn.onclick=()=>{
+  if(!state.course){ updateCalibUI('Select a course first'); return; }
+  if(calibMode){ calibMode=null; updateCalibUI(''); }         // cancel
+  else{ calibMode='tee'; updateCalibUI('Tap the TEE box'); }
+};
+document.getElementById('frameBtn').onclick=()=>{ const g=geoFor(state.course,cur); if(g) frameHole(g); };
+function updateCalibUI(msg){
+  calibStat.textContent=msg;
+  calibBtn.textContent = calibMode ? 'Cancel' : 'Calibrate hole';
+  calibBtn.classList.toggle('calibrating', !!calibMode);
+}
+function updateCalibBadge(cal){
+  if(calibMode) return;                 // don't clobber active-calibration message
+  calibStat.textContent = state.course ? (cal?'hole calibrated ✓':'seed position (tap Calibrate to fix)') : '';
+}
+function startGPS(){
+  if(!navigator.geolocation){ gpsStat.textContent='GPS unsupported'; return; }
+  gpsBtn.classList.add('on'); gpsBtn.textContent='Stop GPS'; gpsStat.textContent='Locating…';
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    const {latitude,longitude,accuracy}=pos.coords;
+    const ll=[latitude,longitude]; const first=!meMarker; meLL=ll;
+    if(!meMarker){
+      const meIcon=L.divIcon({className:'',iconSize:[40,40],iconAnchor:[20,20],
+        html:'<div class="mepos"><div class="mecone" id="meCone"></div><div class="medot"></div></div>'});
+      meMarker=L.marker(ll,{icon:meIcon,interactive:false}).addTo(map);
+      meAccuracy=L.circle(ll,{radius:accuracy,color:'#1e90ff',weight:1,fillColor:'#1e90ff',fillOpacity:.12}).addTo(map);
+      if(!geoFor(state.course,cur)) map.setView(ll,17);   // only jump to me if hole isn't framed
+      enableCompass();
+    }else{
+      meMarker.setLatLng(ll); meAccuracy.setLatLng(ll).setRadius(accuracy);
+    }
+    drawArcs();
+    gpsStat.textContent='±'+Math.round(accuracy)+' m';
+    updateDistance();
+  }, err=>{
+    gpsStat.textContent = err.code===1?'Permission denied':'GPS error';
+    stopGPS();
+  }, {enableHighAccuracy:true,maximumAge:2000,timeout:15000});
+}
+
+/* ---- Compass heading: rotates the blue cone to the way the phone points.
+   The MAP stays hole-up; only the cone spins. Needs permission on iOS. ---- */
+function enableCompass(){
+  function onOrient(e){
+    let hd=null;
+    if(typeof e.webkitCompassHeading==='number') hd=e.webkitCompassHeading;      // iOS: degrees from north
+    else if(e.absolute && typeof e.alpha==='number') hd=360-e.alpha;             // Android absolute
+    if(hd!=null){ deviceHeading=hd; updateHeadingCone(); }
+  }
+  // iOS 13+ requires a user-gesture permission request
+  if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(s=>{
+      if(s==='granted') window.addEventListener('deviceorientation', onOrient);
+    }).catch(()=>{});
+  }else if(typeof DeviceOrientationEvent!=='undefined'){
+    window.addEventListener('deviceorientationabsolute', onOrient);
+    window.addEventListener('deviceorientation', onOrient);
+  }
+}
+/* cone points to (phone heading - hole bearing) because the map itself is rotated by -bearing */
+function updateHeadingCone(){
+  const cone=document.getElementById('meCone');
+  if(!cone) return;
+  if(deviceHeading==null){ cone.style.display='none'; return; }
+  cone.style.display='block';
+  cone.style.transform='translateX(-50%) rotate('+(deviceHeading-currentBearing)+'deg)';
+}
+function stopGPS(){
+  if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+  gpsBtn.classList.remove('on'); gpsBtn.textContent='Start GPS';
+  if(gpsStat.textContent==='Locating…'||gpsStat.textContent.startsWith('±')) gpsStat.textContent='GPS off';
+}
+
+/* ---- Totals ---- */
+function renderTotals(){
+  let score=0,putts=0,par=0,n=0;
+  for(let i=1;i<=18;i++){ const h=state.holes[i];
+    if(holePlayed(h)) n++;
+    if(h.score){score+=+h.score; par+=(+h.par||0);}
+    if(h.putts) putts+=+h.putts;
+  }
+  document.getElementById('t_score').textContent=score;
+  document.getElementById('t_putts').textContent=putts;
+  const diff=score-par;
+  document.getElementById('t_par').textContent = par===0?'—':(diff===0?'E':(diff>0?'+'+diff:diff));
+  document.getElementById('t_holes').textContent = n+' hole'+(n===1?'':'s')+' entered';
+}
+
+/* ---- Master render ---- */
+function render(){
+  document.getElementById('curHole').textContent=cur;
+  const h=state.holes[cur], c=activeCourse();
+  const parEl=document.getElementById('kpi_par'), lenEl=document.getElementById('kpi_len');
+  parEl.value=h.par; lenEl.value=h.len;
+  document.getElementById('kpi_score').value=h.score;
+  document.getElementById('kpi_putts').value=h.putts;
+  const loaded=courseLoaded();
+  parEl.classList.toggle('auto', loaded);
+  lenEl.classList.toggle('auto', loaded && !!state.tee);
+  document.getElementById('holeInfo').textContent = loaded ? ('Par '+c.holes[cur-1].par+' • HCP '+c.holes[cur-1].hcp) : '';
+  renderSwings(); renderDot('fairway','fairway'); renderDot('green','green');
+  renderGrid(); renderTotals();
+  if(map){ calibMode=null; updateCalibUI(''); drawHole(true); }
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---- Date ---- */
+const dateEl=document.getElementById('roundDate');
+dateEl.value=state.date;
+dateEl.addEventListener('input',e=>{state.date=e.target.value;save();});
+
+/* ---- Export ---- */
+document.getElementById('exportBtn').onclick=()=>{
+  const c=activeCourse(); const teeObj=c?c.tees.find(t=>t.id===state.tee):null;
+  const wb=XLSX.utils.book_new();
+  const summary=[['Golf Round',state.date],
+    ['Course', c?c.name:''],['Tees', teeObj?teeObj.label:''],[],
+    ['Hole','Par','HCP','Yards','Score','Putts','vs Par']];
+  let tScore=0,tPar=0,tPutts=0;
+  for(let i=1;i<=18;i++){ const h=state.holes[i]; if(!holePlayed(h)&&!h.score) continue;
+    const hcp=(c&&c.holes.length===18)?c.holes[i-1].hcp:'';
+    const vp=(h.score&&h.par)?(+h.score-+h.par):'';
+    summary.push([i,+h.par||'',hcp,+h.len||'',+h.score||'',+h.putts||'',vp]);
+    if(h.score){tScore+=+h.score;tPar+=(+h.par||0);} if(h.putts)tPutts+=+h.putts;
+  }
+  summary.push([]);
+  summary.push(['TOTAL','','','',tScore,tPutts, tPar?(tScore-tPar):'']);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
+
+  const detail=[['Hole','Shot #','Club','Dist to Hole','Carry']];
+  for(let i=1;i<=18;i++){ const h=state.holes[i];
+    h.swings.forEach((s,r)=>{ if(!s.club&&!s.dist) return;
+      detail.push([i,r+1,s.club,s.dist,carryFor(h.swings,r)]);
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detail), 'Shots');
+  const cn = c?c.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase():'export';
+  XLSX.writeFile(wb, 'golf-'+cn+'-'+(state.date||'round')+'.xlsx');
+};
+
+/* ---- Reset ---- */
+document.getElementById('resetBtn').onclick=()=>{
+  if(!confirm('Start a new round? This clears all current hole data (course selection stays).')) return;
+  const keepCourse=state.course, keepTee=state.tee;
+  state=freshRound(); state.course=keepCourse; state.tee=keepTee;
+  if(courseLoaded()) applyCourseToHoles();
+  cur=1; dateEl.value=state.date; save(); render();
+};
+
+/* ---- My Bag view ---- */
+const bagRows=document.getElementById('bagRows');
+function renderBag(){
+  bagRows.innerHTML='';
+  bag.forEach((c,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td class="club-cell"><input list="clubList" data-i="'+i+'" data-f="club" value="'+
+        (c.club||'').replace(/"/g,'&quot;')+'" placeholder="Club"></td>'+
+      '<td class="yd-cell"><input type="number" inputmode="numeric" data-i="'+i+'" data-f="dist" value="'+
+        (c.dist===''?'':c.dist)+'" placeholder="Yds"></td>'+
+      '<td style="width:15%;text-align:right"><button class="delbtn" data-del="'+i+'">&times;</button></td>';
+    bagRows.appendChild(tr);
+  });
+  document.getElementById('bagEmpty').style.display = bag.length?'none':'block';
+}
+bagRows.addEventListener('input', e=>{
+  const i=+e.target.dataset.i, f=e.target.dataset.f;
+  if(f===undefined) return;
+  bag[i][f]=e.target.value; saveBag();
+  if(targetLL&&meLL){ const y=Math.round(yardsBetween(meLL,targetLL)); renderSuggestion(y); }
+});
+bagRows.addEventListener('click', e=>{
+  const del=e.target.dataset.del;
+  if(del===undefined) return;
+  bag.splice(+del,1); saveBag(); renderBag();
+});
+function addClub(){
+  const cEl=document.getElementById('newClub'), dEl=document.getElementById('newDist');
+  const club=cEl.value.trim(), dist=dEl.value.trim();
+  if(!club && !dist) return;
+  bag.push({club, dist}); saveBag(); renderBag();
+  cEl.value=''; dEl.value=''; cEl.focus();
+}
+document.getElementById('addClubBtn').onclick=addClub;
+document.getElementById('newDist').addEventListener('keydown',e=>{ if(e.key==='Enter') addClub(); });
+
+/* ---- View switching (Play / My Bag) ---- */
+function setView(v){
+  const play=v==='play';
+  document.getElementById('playView').style.display = play?'':'none';
+  document.getElementById('bagView').style.display  = play?'none':'';
+  document.getElementById('courseControls').style.display = play?'':'none';
+  document.querySelector('.bottombar').style.display = play?'':'none';
+  document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.view===v));
+  if(play && map){ setTimeout(()=>map.invalidateSize(),80); }
+  else{ renderBag(); }
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('.navtab').forEach(t=>{ t.onclick=()=>setView(t.dataset.view); });
+
+/* ---- Boot ---- */
+courseSel.value=state.course||'';
+buildTeeSel();
+if(courseLoaded()) applyCourseToHoles();
+updateCourseMeta();
+initMap();
+renderBag();
+render();
+</script>
+</body>
+</html>
